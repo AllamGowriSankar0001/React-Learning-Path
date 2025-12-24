@@ -16,13 +16,13 @@ function App() {
     <div className="app-container">
       <Header title="Dashboard" />
       <div className="layout">
-        <Sidebar>
-          <Header title="Sidebar" />
-        </Sidebar>
-        <Content>
-          <Header title="Content" />
-        </Content>
-      </div>
+      <Sidebar>
+        <Header title="Sidebar" />
+      </Sidebar>
+      <Content>
+        <Header title="Content" />
+      </Content>
+    </div>
     </div>
   )
 }
