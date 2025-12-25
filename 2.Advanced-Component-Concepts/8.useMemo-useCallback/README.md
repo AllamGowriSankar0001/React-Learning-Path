@@ -1,40 +1,22 @@
 # useMemo and useCallback
 
-## The core problem
+So here's the thing - React components re-run their entire function every time they render. That means if you're doing something expensive like filtering a huge array or doing complex calculations, it's going to run again and again, even if nothing actually changed. Same with functions - every render creates a brand new function object, which can cause child components to re-render when they don't really need to.
 
-In React:
+That's where useMemo and useCallback come in. They're basically React's way of saying "hey, we already did this work, let's just reuse it unless something actually changed."
 
-- Every render re-runs the component function
+## useMemo - for expensive calculations
 
-That means:
+UseMemo is for memoizing values. Basically, it remembers the result of an expensive calculation and only recalculates when the dependencies change.
 
-- Expensive calculations run again
-- New function objects are created
-- Child components may re-render unnecessarily
-
-👉 **useMemo** and **useCallback** help reuse previous results instead of recalculating or recreating things.
-
----
-
-## useMemo
-
-**"Memoize a VALUE"**
-
-### Use it when:
-
-- A calculation is expensive
-- The result doesn't need to change on every render
-
-### Syntax
+Here's the syntax:
 
 ```jsx
 const value = useMemo(() => computeSomething(a, b), [a, b]);
 ```
 
-- Runs `computeSomething` only when dependencies change
-- Otherwise, React returns the cached value
+If `a` or `b` haven't changed, React just gives you back the cached result. No recalculation needed.
 
-### Example: Expensive calculation
+Here's a practical example:
 
 ```jsx
 import { useMemo, useState } from "react";
@@ -58,33 +40,13 @@ function App() {
 }
 ```
 
-### What this prevents
+In this example, when you type in the input, the expensive calculation doesn't run again because `count` didn't change. It only recalculates when you click the button and `count` actually changes.
 
-- Typing in the input does **NOT** rerun the expensive calculation
-- Calculation runs only when `count` changes
+But here's the thing - don't go crazy with useMemo. If your calculation is simple (like `count * 2`), the overhead of memoization might actually make things slower. Only use it when you're actually doing something expensive. Overusing it can make your code harder to read and maintain.
 
-### When NOT to use useMemo
+## useCallback - for function references
 
-- ❌ Simple calculations
-- ❌ "Just in case" optimization
-- ❌ Values not expensive to compute
-
-**Overusing useMemo can make code slower and harder to read.**
-
----
-
-## useCallback
-
-**"Memoize a FUNCTION"**
-
-Functions are objects. New render = new function reference.
-
-### This matters when:
-
-- Passing functions to memoized child components
-- Using functions as dependencies in `useEffect`
-
-### Syntax
+UseCallback is basically useMemo but for functions. Since functions are objects in JavaScript, every render creates a new function reference. That's usually fine, but it matters when you're passing functions to memoized child components (using React.memo) or when functions are dependencies in useEffect.
 
 ```jsx
 const memoizedFn = useCallback(() => {
@@ -92,13 +54,15 @@ const memoizedFn = useCallback(() => {
 }, [deps]);
 ```
 
-This is equivalent to:
+Actually, `useCallback` is technically just syntactic sugar. You could write it as:
 
 ```jsx
 useMemo(() => () => doSomething(), [deps]);
 ```
 
-### Example: Prevent child re-render
+But useCallback is cleaner and easier to read.
+
+Here's when it really helps:
 
 ```jsx
 import { memo, useCallback, useState } from "react";
@@ -125,30 +89,20 @@ function Parent() {
 }
 ```
 
-### What this prevents
+Without useCallback, the `handleClick` function gets recreated on every render, so React.memo sees a "new" prop and re-renders the Child. With useCallback, the function reference stays the same, so Child doesn't re-render unnecessarily.
 
-- **Without useCallback:** Child re-renders every time
-- **With useCallback:** Child renders only once
+## useMemo vs useCallback - quick comparison
 
----
+| Hook | What it memoizes | When to use |
+|------|-----------------|-------------|
+| useMemo | A value/result | Expensive calculations |
+| useCallback | A function | Stable function references needed |
 
-## useMemo vs useCallback
+Simple rule: useMemo is "don't recalculate this", useCallback is "don't recreate this function".
 
-| Hook | Memoizes | Use when |
-|------|----------|----------|
-| `useMemo` | a value | expensive calculations |
-| `useCallback` | a function | stable function reference |
+## Common mistake to avoid
 
-### 🧠 Rule of thumb
-
-- `useMemo` → "Don't recalculate"
-- `useCallback` → "Don't recreate"
-
----
-
-## Common mistake (very important)
-
-❌ **This does NOTHING useful:**
+This is something I see a lot, and it's actually useless:
 
 ```jsx
 const fn = useCallback(() => {
@@ -156,11 +110,9 @@ const fn = useCallback(() => {
 }, [count]);
 ```
 
-**Why?**
+Why is this pointless? Because `count` is in the dependency array, so every time `count` changes, the function gets recreated anyway. You just defeated the purpose of useCallback.
 
-- `count` changes → function is recreated anyway
-
-✅ **Better:**
+The fix is to use the functional update form of setState:
 
 ```jsx
 const fn = useCallback(() => {
@@ -168,48 +120,18 @@ const fn = useCallback(() => {
 }, []);
 ```
 
----
+Now the function never needs to depend on `count`, so it stays stable.
 
-## Do these hooks prevent renders?
+## Important: they don't prevent renders
 
-### ⚠️ Important truth
+I need to make this super clear - useMemo and useCallback do NOT prevent re-renders. They prevent recalculation and prevent new references from being created, but the component will still re-render if its props or state change.
 
-- `useMemo` ❌ does **NOT** prevent re-renders
-- `useCallback` ❌ does **NOT** prevent re-renders
+If you want to actually prevent re-renders, you need React.memo for the component itself. Then useMemo and useCallback help make React.memo work properly.
 
-They only:
+## The mental model
 
-- Prevent recalculation
-- Prevent new references
+Here's how I think about them:
+- useMemo remembers results
+- useCallback remembers functions
 
-👉 **To actually stop re-renders:**
-
-- `React.memo`
-- `useMemo` / `useCallback` together
-
----
-
-## One-line mental model
-
-- `useMemo` remembers **results**
-- `useCallback` remembers **functions**
-
----
-
-## Quick decision guide
-
-### Use useMemo when:
-- ✅ Calculating expensive values
-- ✅ Processing large arrays/objects
-- ✅ Avoiding unnecessary recalculations
-
-### Use useCallback when:
-- ✅ Passing functions to `React.memo` children
-- ✅ Functions are dependencies in `useEffect`
-- ✅ Avoiding unnecessary function recreations
-
-### Don't use when:
-- ❌ Simple calculations
-- ❌ Premature optimization
-- ❌ Not experiencing performance issues
-
+That's really it. Simple concept, but super useful when applied correctly.
